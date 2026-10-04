@@ -1,7 +1,6 @@
 import os
 import re
 import json
-import base64
 import urllib.request
 import sys
 import threading
@@ -36,21 +35,13 @@ def run_web_server():
     server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
     server.serve_forever()
 
-def call_gemini_api(prompt: str, image_path: str = None) -> str:
-    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent"
+def call_gemini_api(prompt: str) -> str:
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
     headers = {
         'Content-Type': 'application/json',
         'X-goog-api-key': GEMINI_API_KEY
     }
-    parts = [{"text": prompt}]
-    
-    if image_path and os.path.exists(image_path):
-        with open(image_path, "rb") as img_file:
-            img_data = base64.b64encode(img_file.read()).decode('utf-8')
-        mime_type = "image/png" if image_path.lower().endswith(".png") else "image/jpeg"
-        parts.append({"inlineData": {"mimeType": mime_type, "data": img_data}})
-        
-    payload = {"contents": [{"parts": parts}]}
+    payload = {"contents": [{"parts": [{"text": prompt}]}]}
     try:
         data = json.dumps(payload).encode('utf-8')
         req = urllib.request.Request(url, data=data, headers=headers)
@@ -75,14 +66,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "سلام! 👋 به ربات هوشمند مدیریت کانال موزیک خوش آمدید.\n\n"
         "✨ **مراحل ساخت پست جدید:**\n"
-        "۱. فایل صوتی / بیت خود را بفرستید.\n"
-        "۲. **عکس کاور پست** را بفرستید.\n"
-        "۳. **اسکرین‌شات بیت‌استارز** یا اطلاعات را بفرستید!\n\n"
+        "۱. **عکس ثابت بیت** (کاور داخل فایل صوتی) را بفرستید.\n"
+        "۲. فایل صوتی / بیت خود را بفرستید.\n"
+        "۳. **عکس کاور پست چنل** را بفرستید.\n"
+        "۴. **متن مشخصات** آهنگ را بفرستید!\n\n"
         "🔄 دستور آپدیت خودکار: `/update`"
     )
 
 async def update_bot(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """دستور آپدیت خودکار ربات از طریق گیت‌هاب"""
     msg = await update.message.reply_text("⏳ در حال بررسی و دریافت آخرین نسخه کد از گیت‌هاب...")
     try:
         req = urllib.request.Request(GITHUB_RAW_URL, headers={'User-Agent': 'Mozilla/5.0'})
@@ -90,73 +81,58 @@ async def update_bot(update: Update, context: ContextTypes.DEFAULT_TYPE):
             new_code = response.read().decode('utf-8')
             
         if "def process_and_send_post" not in new_code:
-            await msg.edit_text("❌ خطا: فایل دانلود شده معتبر به نظر نمی‌رسد.")
+            await msg.edit_text("❌ خطا: فایل دانلود شده معتبر به نظر نمی‌‌رسد.")
             return
 
         with open("channel_bot.py", "w", encoding="utf-8") as f:
             f.write(new_code)
             
         await msg.edit_text("✅ ربات با موفقیت به‌روزرسانی شد! 🚀")
-        
         os.execv(sys.executable, ['python'] + sys.argv)
     except Exception as e:
         await msg.edit_text(f"❌ خطا در آپدیت خودکار: {str(e)}")
+
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_data = context.user_data
+    photo = update.message.photo[-1]
+
+    if not user_data.get('default_track_cover_id'):
+        user_data['default_track_cover_id'] = photo.file_id
+        await update.message.reply_text("✅ عکس ثابت بیت دریافت شد!\n\nحالا **فایل صوتی / بیت** خود را ارسال کنید.")
+        return
+
+    if user_data.get('audio_file_id') and not user_data.get('post_cover_id'):
+        user_data['post_cover_id'] = photo.file_id
+        await update.message.reply_text(
+            "✅ عکس کاور پست چنل دریافت شد!\n\n"
+            "📝 حالا **مشخصات آهنگ** (نام، تمپو، گام، سبک و زمان برش مثل `0:30 - 1:00`) را به صورت متن بفرستید تا پست نهایی ساخته شود."
+        )
+        return
+    
+    await update.message.reply_text("ℹ️️ لطفا طبق مرحله پیش بروید.")
 
 async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     audio = update.message.audio or update.message.voice or update.message.document
     if not audio:
         return
     
-    context.user_data.clear()
-    context.user_data['audio_file_id'] = audio.file_id
-    await update.message.reply_text("✅ موزیک دریافت شد!\nلطفاً **عکس کاور پست** را ارسال کنید.")
-
-async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = context.user_data
-
-    if not user_data.get('audio_file_id'):
-        await update.message.reply_text("❌ لطفاً ابتدا فایل صوتی را بفرستید.")
+    if not user_data.get('default_track_cover_id'):
+        await update.message.reply_text("❌ لطفاً ابتدا عکس ثابت بیت را ارسال کنید.")
         return
 
-    if not user_data.get('post_cover_id'):
-        photo = update.message.photo[-1]
-        user_data['post_cover_id'] = photo.file_id
-        await update.message.reply_text(
-            "✅ عکس کاور پست دریافت شد!\n\n"
-            "📸 حالا **اسکرین‌شات بیت‌استارز** را بفرستید (می‌توانید زمان برش مثلاً `0:30 - 1:00` را زیر عکس بنویسید)."
-        )
-        return
-
-    status_msg = await update.message.reply_text("🔎 در حال خواندن اطلاعات از روی اسکرین‌شات...")
-    
-    screenshot = update.message.photo[-1]
-    screenshot_file = await context.bot.get_file(screenshot.file_id)
-    screenshot_path = "temp_screenshot.jpg"
-    await screenshot_file.download_to_drive(screenshot_path)
-
-    caption_text = update.message.caption or ""
-    time_match = re.findall(r'\b\d{1,2}:\d{2}\b', caption_text)
-    if len(time_match) >= 2:
-        start_ms = time_to_ms(time_match[0])
-        end_ms = time_to_ms(time_match[1])
-    elif len(time_match) == 1:
-        start_ms = time_to_ms(time_match[0])
-        end_ms = start_ms + 30000
-    else:
-        start_ms = 0
-        end_ms = 30000
-
-    await process_and_send_post(update, context, status_msg, screenshot_path=screenshot_path, start_ms=start_ms, end_ms=end_ms)
+    user_data['audio_file_id'] = audio.file_id
+    await update.message.reply_text("✅ فایل صوتی دریافت شد!\n\nحالا **عکس کاور پست چنل** را ارسال کنید.")
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = context.user_data
 
-    if not user_data.get('audio_file_id') or not user_data.get('post_cover_id'):
-        await update.message.reply_text("لطفاً ابتدا فایل صوتی و عکس کاور پست را ارسال کنید.")
+    if not user_data.get('default_track_cover_id') or not user_data.get('audio_file_id') or not user_data.get('post_cover_id'):
+        await update.message.reply_text("❌ لطفاً مراحل قبلی (عکس ثابت بیت، فایل صوتی، عکس کاور پست) را کامل ارسال کنید.")
         return
 
     user_text = update.message.text.strip()
-    status_msg = await update.message.reply_text("⏳ در حال پردازش اطلاعات و آماده‌سازی پست...")
+    status_msg = await update.message.reply_text("⏳ در حال پردازش اطلاعات و ساخت کپشن با هوش مصنوعی...")
 
     time_match = re.findall(r'\b\d{1,2}:\d{2}\b', user_text)
     if len(time_match) >= 2:
@@ -171,45 +147,48 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await process_and_send_post(update, context, status_msg, text_info=user_text, start_ms=start_ms, end_ms=end_ms)
 
-async def process_and_send_post(update, context, status_msg, screenshot_path=None, text_info=None, start_ms=0, end_ms=30000):
+async def process_and_send_post(update, context, status_msg, text_info=None, start_ms=0, end_ms=30000):
     user_data = context.user_data
-    cover_path = "temp_post_cover.jpg"
+    track_cover_path = "temp_track_cover.jpg"
+    post_cover_path = "temp_post_cover.jpg"
     file_path = "temp_audio.mp3"
     cut_path = "cut_audio.mp3"
 
     try:
-        cover_file = await context.bot.get_file(user_data['post_cover_id'])
-        await cover_file.download_to_drive(cover_path)
+        # دانلود عکس ثابت بیت برای داخل فایل صوتی
+        track_cover_file = await context.bot.get_file(user_data['default_track_cover_id'])
+        await track_cover_file.download_to_drive(track_cover_path)
 
-        await status_msg.edit_text("✍️ در حال تحلیل و ساخت کپشن با هوش مصنوعی...")
+        # دانلود عکس کاور پست برای تلگرام
+        post_cover_file = await context.bot.get_file(user_data['post_cover_id'])
+        await post_cover_file.download_to_drive(post_cover_path)
+
+        await status_msg.edit_text("✍️ در حال ساخت کپشن حرفه‌ای با هوش مصنوعی...")
 
         prompt = (
-            "You are the admin of a music channel.\n"
-            "Extract details (Title, BPM, Key, Genre, Tags) from the screenshot or text and output EXACTLY in this format:\n\n"
+            "You are an expert music channel admin. Based on the user's provided info, generate a Telegram caption in this EXACT format:\n\n"
             "🧪 808CODE | #808_5\n"
             "— 30s Preview —\n"
-            "♩ Title — [Title from image, e.g. Rolex]\n"
-            "♩ Specs — [BPM number] BPM | Key: #[Key from image or #Fm if not found]\n"
-            "♩ Vibe — #[Genre from image, e.g. #Hiphop]\n"
-            "♩ Style — #[Tag1] #[Tag2] #[Tag3]\n\n"
-            "​📥 Full File (MP3 / WAV / Stems): \n"
-            "@ad_808code"
+            "♩ Title — [Track Title]\n"
+            "♩ Specs — [BPM] BPM | Key: [Key]\n"
+            "♩ Vibe — [Genre]\n"
+            "♩ Style — [Tags]\n\n"
+            "📥 Full File (MP3 / WAV / Stems): \n"
+            "@ad_808code\n\n"
+            f"User Provided Info:\n{text_info}"
         )
 
-        if text_info:
-            prompt += f"\n\nاطلاعات متنی:\n{text_info}"
-
-        caption = call_gemini_api(prompt, image_path=screenshot_path)
+        caption = call_gemini_api(prompt)
         
         if not caption:
             caption = (
                 "🧪 808CODE | #808_5\n"
                 "— 30s Preview —\n"
-                "♩ Title — Unknown\n"
+                "♩ Title — Track\n"
                 "♩ Specs — 140 BPM | Key: #Fm\n"
-                "♩ Vibe — #Hiphop\n"
+                "♩ Vibe — #HipHop\n"
                 "♩ Style — #Trap\n\n"
-                "​📥 Full File (MP3 / WAV / Stems): \n"
+                "📥 Full File (MP3 / WAV / Stems): \n"
                 "@ad_808code"
             )
 
@@ -221,13 +200,18 @@ async def process_and_send_post(update, context, status_msg, screenshot_path=Non
         cut_song = song[start_ms:min(end_ms, len(song))]
         cut_song.fade_out(1000).export(cut_path, format="mp3")
 
-        if os.path.exists(cover_path) and os.path.exists(cut_path):
-            with open(cut_path, 'rb') as audio, open(cover_path, 'rb') as thumb:
+        if os.path.exists(post_cover_path) and os.path.exists(cut_path) and os.path.exists(track_cover_path):
+            with open(post_cover_path, 'rb') as photo_file, open(cut_path, 'rb') as audio_file_obj, open(track_cover_path, 'rb') as thumb_file:
+                # ارسال عکس کاور پست به عنوان پیام اصلی همراه با کپشن، و فایل صوتی با کاور ثابت بیت به عنوان تامبنیل
+                sent_msg = await context.bot.send_photo(
+                    chat_id=update.message.chat_id,
+                    photo=photo_file,
+                    caption=caption
+                )
                 await context.bot.send_audio(
                     chat_id=update.message.chat_id,
-                    audio=audio,
-                    thumbnail=thumb,
-                    caption=caption
+                    audio=audio_file_obj,
+                    thumbnail=thumb_file
                 )
 
         await status_msg.edit_text("🚀 **پست با موفقیت آماده و ارسال شد!**", parse_mode="Markdown")
@@ -237,21 +221,21 @@ async def process_and_send_post(update, context, status_msg, screenshot_path=Non
         await status_msg.edit_text(f"❌ خطا در پردازش: {str(e)}")
 
     finally:
-        for f in [file_path, cut_path, cover_path, screenshot_path]:
+        for f in [file_path, cut_path, track_cover_path, post_cover_path]:
             if f and os.path.exists(f):
                 os.remove(f)
 
 if __name__ == '__main__':
-    # راه‌اندازی وب‌سرور در یک نخ (Thread) جداگانه برای باز نگه داشتن پورت رندر
     threading.Thread(target=run_web_server, daemon=True).start()
 
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("update", update_bot))
-    app.add_handler(MessageHandler(filters.AUDIO | filters.VOICE | filters.Document.AUDIO, handle_audio))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+    app.add_handler(MessageHandler(filters.AUDIO | filters.VOICE | filters.Document.AUDIO, handle_audio))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     
-    print("🤖 ربات با قابلیت پورت وب و آپدیت خودکار فعال شد...")
+    print("🤖 ربات با قابلیت کاور ثابت و کاور پست فعال شد...")
     app.run_polling()
+```gui:channel_bot.py:channel_bot.py
