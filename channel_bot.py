@@ -18,12 +18,9 @@ from telegram.ext import (
 # ------------------- تنظیمات کلیدی -------------------
 TELEGRAM_TOKEN = "8831739954:AAG8w-rh9KK1zbDZBQzqLHqlvONmZAQH-sM"
 GEMINI_API_KEY = "AQ.Ab8RN6ICtQ7xI8bqxNcQPrY1Z06v6H698rpJdh00H1Z6_FbXmQ"
-
-# آدرس لینک خام فایل channel_bot.py در گیت‌هاب شما
 GITHUB_RAW_URL = "https://raw.githubusercontent.com/shahin11020x-blip/-ad808code_bot/main/channel_bot.py"
 # -----------------------------------------------------
 
-# وب‌سرور سبک برای راضی کردن رندر و باز نگه داشتن پورت
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -67,7 +64,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "سلام! 👋 به ربات هوشمند مدیریت کانال موزیک خوش آمدید.\n\n"
         "✨ **مراحل ساخت پست جدید:**\n"
         "۱. **عکس ثابت بیت** (کاور داخل فایل صوتی) را بفرستید.\n"
-        "۲. فایل صوتی / بیت خود را بفرستید.\n"
+        "۲. **فایل صوتی / بیت** خود را بفرستید.\n"
         "۳. **عکس کاور پست چنل** را بفرستید.\n"
         "۴. **متن مشخصات** آهنگ را بفرستید!\n\n"
         "🔄 دستور آپدیت خودکار: `/update`"
@@ -109,7 +106,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
-    await update.message.reply_text("ℹ️️ لطفا طبق مرحله پیش بروید.")
+    await update.message.reply_text("ℹ لطفا طبق مرحله پیش بروید.")
 
 async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     audio = update.message.audio or update.message.voice or update.message.document
@@ -155,11 +152,9 @@ async def process_and_send_post(update, context, status_msg, text_info=None, sta
     cut_path = "cut_audio.mp3"
 
     try:
-        # دانلود عکس ثابت بیت برای داخل فایل صوتی
         track_cover_file = await context.bot.get_file(user_data['default_track_cover_id'])
         await track_cover_file.download_to_drive(track_cover_path)
 
-        # دانلود عکس کاور پست برای تلگرام
         post_cover_file = await context.bot.get_file(user_data['post_cover_id'])
         await post_cover_file.download_to_drive(post_cover_path)
 
@@ -202,8 +197,7 @@ async def process_and_send_post(update, context, status_msg, text_info=None, sta
 
         if os.path.exists(post_cover_path) and os.path.exists(cut_path) and os.path.exists(track_cover_path):
             with open(post_cover_path, 'rb') as photo_file, open(cut_path, 'rb') as audio_file_obj, open(track_cover_path, 'rb') as thumb_file:
-                # ارسال عکس کاور پست به عنوان پیام اصلی همراه با کپشن، و فایل صوتی با کاور ثابت بیت به عنوان تامبنیل
-                sent_msg = await context.bot.send_photo(
+                await context.bot.send_photo(
                     chat_id=update.message.chat_id,
                     photo=photo_file,
                     caption=caption
@@ -238,4 +232,3 @@ if __name__ == '__main__':
     
     print("🤖 ربات با قابلیت کاور ثابت و کاور پست فعال شد...")
     app.run_polling()
-```gui:channel_bot.py:channel_bot.py
