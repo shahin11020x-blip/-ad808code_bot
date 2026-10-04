@@ -62,7 +62,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "۱. **عکس ثابت بیت** (کاور داخل فایل صوتی) را بفرستید.\n"
         "۲. **فایل صوتی / بیت** خود را بفرستید.\n"
         "۳. **عکس کاور پست چنل** را بفرستید.\n"
-        "۴. **متن دلخواه خودتان** را بفرستید تا دقیقاً روی پست قرار گیرد.\n\n"
+        "۴. **متن دلخواه خودتان** را بفرستید تا دقیقاً روی فایل صوتی و پست قرار گیرد.\n\n"
         "👇 از دکمه زیر یا منوی دستورات هم می‌توانید استفاده کنید:",
         reply_markup=reply_markup
     )
@@ -104,7 +104,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_data.get('audio_file_id') and not user_data.get('post_cover_id'):
         user_data['post_cover_id'] = photo.file_id
         await update.message.reply_text(
-            "✅ عکس کاور پست چنل دریافت شد!\n\n"
+            "✅ عکس کاور پست دریافت شد!\n\n"
             "📝 حالا **متن دلخواه خودتان** (همراه با زمان برش مثل `0:30 - 1:00` اگر نیاز است) را بفرستید."
         )
         return
@@ -152,7 +152,7 @@ async def process_and_send_post(update, context, status_msg, caption_text=None, 
     track_cover_path = "temp_track_cover.jpg"
     post_cover_path = "temp_post_cover.jpg"
     file_path = "temp_audio.mp3"
-    cut_path = "cut_audio.mp3"
+    cut_path = "808CODE.mp3"
 
     try:
         track_cover_file = await context.bot.get_file(user_data['default_track_cover_id'])
@@ -172,19 +172,13 @@ async def process_and_send_post(update, context, status_msg, caption_text=None, 
 
         if os.path.exists(post_cover_path) and os.path.exists(cut_path) and os.path.exists(track_cover_path):
             with open(post_cover_path, 'rb') as photo_file, open(cut_path, 'rb') as audio_file_obj, open(track_cover_path, 'rb') as thumb_file:
-                # 1. ارسال عکس کاور پست همراه با متن دلخواه شما
-                sent_msg = await context.bot.send_photo(
-                    chat_id=chat_id,
-                    photo=photo_file,
-                    caption=caption_text
-                )
-                
-                # 2. ارسال فایل صوتی با کاور ثابت بیت به صورت پاسخ (Reply) زیر همان عکس
+                # ارسال فایل صوتی همراه با عکس کاور پست و متن دلخواه شما به عنوان کپشن یکپارچه
                 await context.bot.send_audio(
                     chat_id=chat_id,
                     audio=audio_file_obj,
                     thumbnail=thumb_file,
-                    reply_to_message_id=sent_msg.message_id
+                    caption=caption_text,
+                    title="808CODE"
                 )
 
         await status_msg.edit_text("🚀 **پست با موفقیت ارسال شد!**", parse_mode="Markdown")
