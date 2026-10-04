@@ -6,11 +6,12 @@ import sys
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pydub import AudioSegment
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.ext import (
     ApplicationBuilder,
     MessageHandler,
     CommandHandler,
+    CallbackQueryHandler,
     filters,
     ContextTypes
 )
@@ -58,8 +59,22 @@ def time_to_ms(time_str: str) -> int:
         return int(parts[0]) * 1000
     return 0
 
+async def post_init(application):
+    # تنظیم دستورات ربات برای نمایش در منوی تلگرام
+    commands = [
+        BotCommand("start", "شروع ساخت پست جدید و ریست ربات"),
+        BotCommand("update", "به‌روزرسانی ربات از گیت‌هاب")
+    ]
+    await application.bot.set_my_commands(commands)
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
+    
+    keyboard = [
+        [InlineKeyboardButton("🔄 به‌روزرسانی ربات", callback_data="btn_update")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
     await update.message.reply_text(
         "سلام! 👋 به ربات هوشمند مدیریت کانال موزیک خوش آمدید.\n\n"
         "✨ **مراحل ساخت پست جدید:**\n"
@@ -67,7 +82,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "۲. **فایل صوتی / بیت** خود را بفرستید.\n"
         "۳. **عکس کاور پست چنل** را بفرستید.\n"
         "۴. **متن مشخصات** آهنگ را بفرستید!\n\n"
-        "🔄 دستور آپدیت خودکار: `/update`"
+        "👇 از دکمه زیر یا منوی دستورات هم می‌توانید استفاده کنید:",
+        reply_markup=reply_markup
     )
 
 async def update_bot(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -89,6 +105,12 @@ async def update_bot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await msg.edit_text(f"❌ خطا در آپدیت خودکار: {str(e)}")
 
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    if query.data == "btn_update":
+        await update_bot(query, context)
+
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = context.user_data
     photo = update.message.photo[-1]
@@ -106,7 +128,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
-    await update.message.reply_text("ℹ لطفا طبق مرحله پیش بروید.")
+    await update.message.reply_text("ℹ لطفاً طبق مرحله پیش بروید.")
 
 async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     audio = update.message.audio or update.message.voice or update.message.document
@@ -195,15 +217,17 @@ async def process_and_send_post(update, context, status_msg, text_info=None, sta
         cut_song = song[start_ms:min(end_ms, len(song))]
         cut_song.fade_out(1000).export(cut_path, format="mp3")
 
+        chat_id = update.message.chat_id if update.message else update.callback_query.message.chat_id
+
         if os.path.exists(post_cover_path) and os.path.exists(cut_path) and os.path.exists(track_cover_path):
             with open(post_cover_path, 'rb') as photo_file, open(cut_path, 'rb') as audio_file_obj, open(track_cover_path, 'rb') as thumb_file:
                 await context.bot.send_photo(
-                    chat_id=update.message.chat_id,
+                    chat_id=chat_id,
                     photo=photo_file,
                     caption=caption
                 )
                 await context.bot.send_audio(
-                    chat_id=update.message.chat_id,
+                    chat_id=chat_id,
                     audio=audio_file_obj,
                     thumbnail=thumb_file
                 )
@@ -222,13 +246,14 @@ async def process_and_send_post(update, context, status_msg, text_info=None, sta
 if __name__ == '__main__':
     threading.Thread(target=run_web_server, daemon=True).start()
 
-    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    app = ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build()
     
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("update", update_bot))
+    app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.AUDIO | filters.VOICE | filters.Document.AUDIO, handle_audio))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     
-    print("🤖 ربات با قابلیت کاور ثابت و کاور پست فعال شد...")
+    print("🤖 ربات با منوی دستورات و دکمه‌های شیشه‌ای فعال شد...")
     app.run_polling()
