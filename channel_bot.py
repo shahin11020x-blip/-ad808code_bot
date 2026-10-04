@@ -18,7 +18,6 @@ from telegram.ext import (
 
 # ------------------- تنظیمات کلیدی -------------------
 TELEGRAM_TOKEN = "8831739954:AAG8w-rh9KK1zbDZBQzqLHqlvONmZAQH-sM"
-GEMINI_API_KEY = "AQ.Ab8RN6ICtQ7xI8bqxNcQPrY1Z06v6H698rpJdh00H1Z6_FbXmQ"
 GITHUB_RAW_URL = "https://raw.githubusercontent.com/shahin11020x-blip/-ad808code_bot/main/channel_bot.py"
 # -----------------------------------------------------
 
@@ -106,7 +105,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_data['post_cover_id'] = photo.file_id
         await update.message.reply_text(
             "✅ عکس کاور پست چنل دریافت شد!\n\n"
-            "📝 حالا **متن دلخواه خودتان** همراه با زمان برش (مثلاً `0:30 - 1:00`) را بفرستید تا پست نهایی ارسال شود."
+            "📝 حالا **متن دلخواه خودتان** (همراه با زمان برش مثل `0:30 - 1:00` اگر نیاز است) را بفرستید."
         )
         return
     
@@ -173,7 +172,7 @@ async def process_and_send_post(update, context, status_msg, caption_text=None, 
 
         if os.path.exists(post_cover_path) and os.path.exists(cut_path) and os.path.exists(track_cover_path):
             with open(post_cover_path, 'rb') as photo_file, open(cut_path, 'rb') as audio_file_obj, open(track_cover_path, 'rb') as thumb_file:
-                # ارسال کاور و فایل صوتی با متن شما در یک پیام واحد (بدون جدا شدن)
+                # ارسال کاور پست و فایل صوتی با متن شما در یک پیام واحد
                 await context.bot.send_audio(
                     chat_id=chat_id,
                     audio=audio_file_obj,
@@ -204,5 +203,5 @@ if __name__ == '__main__':
     app.add_handler(MessageHandler(filters.AUDIO | filters.VOICE | filters.Document.AUDIO, handle_audio))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     
-    print("🤖 ربات با قابلیت ارسال فایل صوتی و متن واحد فعال شد...")
+    print("🤖 ربات با موفقیت فعال شد...")
     app.run_polling()
