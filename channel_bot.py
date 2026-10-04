@@ -172,12 +172,19 @@ async def process_and_send_post(update, context, status_msg, caption_text=None, 
 
         if os.path.exists(post_cover_path) and os.path.exists(cut_path) and os.path.exists(track_cover_path):
             with open(post_cover_path, 'rb') as photo_file, open(cut_path, 'rb') as audio_file_obj, open(track_cover_path, 'rb') as thumb_file:
-                # ارسال کاور پست و فایل صوتی با متن شما در یک پیام واحد
+                # 1. ارسال عکس کاور پست همراه با متن دلخواه شما
+                sent_msg = await context.bot.send_photo(
+                    chat_id=chat_id,
+                    photo=photo_file,
+                    caption=caption_text
+                )
+                
+                # 2. ارسال فایل صوتی با کاور ثابت بیت به صورت پاسخ (Reply) زیر همان عکس
                 await context.bot.send_audio(
                     chat_id=chat_id,
                     audio=audio_file_obj,
                     thumbnail=thumb_file,
-                    caption=caption_text
+                    reply_to_message_id=sent_msg.message_id
                 )
 
         await status_msg.edit_text("🚀 **پست با موفقیت ارسال شد!**", parse_mode="Markdown")
