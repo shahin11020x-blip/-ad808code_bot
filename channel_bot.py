@@ -1,6 +1,6 @@
 import os
 import re
-import json
+import time
 import urllib.request
 import sys
 import threading
@@ -138,9 +138,11 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def process_and_send_post(update, context, status_msg, caption_text=None, start_ms=0, end_ms=30000):
     user_data = context.user_data
-    track_cover_path = "temp_track_cover.jpg"
-    file_path = "temp_audio.mp3"
-    cut_path = "808CODE.mp3"
+    
+    timestamp = int(time.time())
+    track_cover_path = f"cover_{timestamp}.jpg"
+    file_path = f"raw_{timestamp}.mp3"
+    cut_path = f"track_{timestamp}.mp3"
 
     try:
         track_cover_file = await context.bot.get_file(user_data['default_track_cover_id'])
@@ -154,23 +156,17 @@ async def process_and_send_post(update, context, status_msg, caption_text=None, 
         cut_song = song[start_ms:min(end_ms, len(song))]
         cut_song.fade_out(1000).export(cut_path, format="mp3")
 
-        # 2. تزریق مستقیم عکس جدید روی فایل صوتی و پاک کردن کاور قبلی
+        # 2. حذف کامل متادیتای قبلی و ساخت ID3 Tag جدید
         try:
-            audio_tags = MP3(cut_path, ID3=ID3)
             try:
-                audio_tags.add_tags()
+                audio_tags = ID3(cut_path)
+                audio_tags.delete()
             except error:
                 pass
-            
-            # پاک کردن تگ‌های قبلی
-            audio_tags.tags.delete(cut_path)
-            audio_tags.save()
 
-            # افزودن عکس جدید به عنوان کاور رسمی MP3
-            audio_tags = MP3(cut_path, ID3=ID3)
-            audio_tags.add_tags()
+            audio_tags = ID3()
             with open(track_cover_path, 'rb') as img:
-                audio_tags.tags.add(
+                audio_tags.add(
                     APIC(
                         encoding=3,
                         mime='image/jpeg',
@@ -179,14 +175,16 @@ async def process_and_send_post(update, context, status_msg, caption_text=None, 
                         data=img.read()
                     )
                 )
-            audio_tags.tags.add(TIT2(encoding=3, text="808CODE"))
-            audio_tags.save()
+            # استفاده از شناسه یونیک برای جلوگیری از کش سرورهای تلگرام
+            audio_tags.add(TIT2(encoding=3, text=f"808CODE #{timestamp % 1000}"))
+            audio_tags.add(TPE1(encoding=3, text="808CODE"))
+            audio_tags.save(cut_path)
         except Exception as tag_err:
             print(f"Tag error: {tag_err}")
 
         chat_id = update.message.chat_id if update.message else update.callback_query.message.chat_id
 
-        # 3. ارسال فایل صوتی
+        # 3. ارسال به تلگرام با Thumbnail اختصاصی
         if os.path.exists(cut_path) and os.path.exists(track_cover_path):
             with open(cut_path, 'rb') as audio_file_obj, open(track_cover_path, 'rb') as thumb_file:
                 await context.bot.send_audio(
@@ -194,7 +192,8 @@ async def process_and_send_post(update, context, status_msg, caption_text=None, 
                     audio=audio_file_obj,
                     thumbnail=thumb_file,
                     caption=caption_text,
-                    title="808CODE"
+                    title=f"808CODE #{timestamp % 1000}",
+                    performer="808CODE"
                 )
 
         await status_msg.edit_text("🚀 **پست با موفقیت ارسال شد!**", parse_mode="Markdown")
@@ -206,7 +205,10 @@ async def process_and_send_post(update, context, status_msg, caption_text=None, 
     finally:
         for f in [file_path, cut_path, track_cover_path]:
             if f and os.path.exists(f):
-                os.remove(f)
+                try:
+                    os.remove(f)
+                except Exception:
+                    pass
 
 if __name__ == '__main__':
     threading.Thread(target=run_web_server, daemon=True).start()
