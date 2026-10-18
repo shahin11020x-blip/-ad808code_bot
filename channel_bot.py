@@ -6,6 +6,8 @@ import sys
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pydub import AudioSegment
+from mutagen.mp3 import MP3
+from mutagen.id3 import ID3, APIC, TIT2, TPE1, error
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.ext import (
     ApplicationBuilder,
@@ -16,10 +18,8 @@ from telegram.ext import (
     ContextTypes
 )
 
-# ------------------- تنظیمات کلیدی -------------------
 TELEGRAM_TOKEN = "8831739954:AAG8w-rh9KK1zbDZBQzqLHqlvONmZAQH-sM"
 GITHUB_RAW_URL = "https://raw.githubusercontent.com/shahin11020x-blip/-ad808code_bot/main/channel_bot.py"
-# -----------------------------------------------------
 
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -50,7 +50,6 @@ async def post_init(application):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
-    
     keyboard = [
         [InlineKeyboardButton("🔄 به‌روزرسانی ربات", callback_data="btn_update")]
     ]
@@ -59,10 +58,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "سلام! 👋 به ربات مدیریت کانال موزیک خوش آمدید.\n\n"
         "✨ **مراحل ساخت پست جدید:**\n"
-        "۱. **عکس ثابت بیت** (کاور داخل فایل صوتی) را بفرستید.\n"
+        "۱. **عکس کاور بیت** را بفرستید.\n"
         "۲. **فایل صوتی / بیت** خود را بفرستید.\n"
-        "۳. **عکس کاور پست چنل** را بفرستید.\n"
-        "۴. **متن دلخواه خودتان** را بفرستید تا دقیقاً روی فایل صوتی و پست قرار گیرد.\n\n"
+        "۳. **متن دلخواه خودتان** را بفرستید تا روی فایل صوتی قرار گیرد.\n\n"
         "👇 از دکمه زیر یا منوی دستورات هم می‌توانید استفاده کنید:",
         reply_markup=reply_markup
     )
@@ -75,7 +73,7 @@ async def update_bot(update: Update, context: ContextTypes.DEFAULT_TYPE):
             new_code = response.read().decode('utf-8')
             
         if "def process_and_send_post" not in new_code:
-            await msg.edit_text("❌ خطا: فایل دانلود شده معتبر به نظر نمی‌‌رسد.")
+            await msg.edit_text("❌ خطا: فایل دانلود شده معتبر به نظر نمی‌رسد.")
             return
 
         with open("channel_bot.py", "w", encoding="utf-8") as f:
@@ -96,20 +94,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = context.user_data
     photo = update.message.photo[-1]
 
-    if not user_data.get('default_track_cover_id'):
-        user_data['default_track_cover_id'] = photo.file_id
-        await update.message.reply_text("✅ عکس ثابت بیت دریافت شد!\n\nحالا **فایل صوتی / بیت** خود را ارسال کنید.")
-        return
-
-    if user_data.get('audio_file_id') and not user_data.get('post_cover_id'):
-        user_data['post_cover_id'] = photo.file_id
-        await update.message.reply_text(
-            "✅ عکس کاور پست دریافت شد!\n\n"
-            "📝 حالا **متن دلخواه خودتان** (همراه با زمان برش مثل `0:30 - 1:00` اگر نیاز است) را بفرستید."
-        )
-        return
-    
-    await update.message.reply_text("ℹ لطفاً طبق مرحله پیش بروید.")
+    user_data['default_track_cover_id'] = photo.file_id
+    await update.message.reply_text("✅ عکس کاور بیت دریافت شد!\n\nحالا **فایل صوتی / بیت** خود را ارسال کنید.")
 
 async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     audio = update.message.audio or update.message.voice or update.message.document
@@ -118,21 +104,24 @@ async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     user_data = context.user_data
     if not user_data.get('default_track_cover_id'):
-        await update.message.reply_text("❌ لطفاً ابتدا عکس ثابت بیت را ارسال کنید.")
+        await update.message.reply_text("❌ لطفاً ابتدا عکس کاور بیت را ارسال کنید.")
         return
 
     user_data['audio_file_id'] = audio.file_id
-    await update.message.reply_text("✅ فایل صوتی دریافت شد!\n\nحالا **عکس کاور پست چنل** را ارسال کنید.")
+    await update.message.reply_text(
+        "✅ فایل صوتی دریافت شد!\n\n"
+        "📝 حالا **متن دلخواه خودتان** (همراه با زمان برش مثل `0:30 - 1:00` اگر نیاز است) را بفرستید."
+    )
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = context.user_data
 
-    if not user_data.get('default_track_cover_id') or not user_data.get('audio_file_id') or not user_data.get('post_cover_id'):
-        await update.message.reply_text("❌ لطفاً ابتدا عکس ثابت بیت، فایل صوتی و عکس کاور پست را ارسال کنید.")
+    if not user_data.get('default_track_cover_id') or not user_data.get('audio_file_id'):
+        await update.message.reply_text("❌ لطفاً ابتدا عکس کاور بیت و فایل صوتی را ارسال کنید.")
         return
 
     user_text = update.message.text.strip()
-    status_msg = await update.message.reply_text("⏳ در حال برش صوت و ارسال پست...")
+    status_msg = await update.message.reply_text("⏳ در حال پردازش، تزریق عکس و ارسال پست...")
 
     time_match = re.findall(r'\b\d{1,2}:\d{2}\b', user_text)
     if len(time_match) >= 2:
@@ -150,7 +139,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def process_and_send_post(update, context, status_msg, caption_text=None, start_ms=0, end_ms=30000):
     user_data = context.user_data
     track_cover_path = "temp_track_cover.jpg"
-    post_cover_path = "temp_post_cover.jpg"
     file_path = "temp_audio.mp3"
     cut_path = "808CODE.mp3"
 
@@ -158,21 +146,49 @@ async def process_and_send_post(update, context, status_msg, caption_text=None, 
         track_cover_file = await context.bot.get_file(user_data['default_track_cover_id'])
         await track_cover_file.download_to_drive(track_cover_path)
 
-        post_cover_file = await context.bot.get_file(user_data['post_cover_id'])
-        await post_cover_file.download_to_drive(post_cover_path)
-
         audio_file = await context.bot.get_file(user_data['audio_file_id'])
         await audio_file.download_to_drive(file_path)
 
+        # 1. برش فایل صوتی
         song = AudioSegment.from_file(file_path)
         cut_song = song[start_ms:min(end_ms, len(song))]
         cut_song.fade_out(1000).export(cut_path, format="mp3")
 
+        # 2. تزریق مستقیم عکس جدید روی فایل صوتی و پاک کردن کاور قبلی
+        try:
+            audio_tags = MP3(cut_path, ID3=ID3)
+            try:
+                audio_tags.add_tags()
+            except error:
+                pass
+            
+            # پاک کردن تگ‌های قبلی
+            audio_tags.tags.delete(cut_path)
+            audio_tags.save()
+
+            # افزودن عکس جدید به عنوان کاور رسمی MP3
+            audio_tags = MP3(cut_path, ID3=ID3)
+            audio_tags.add_tags()
+            with open(track_cover_path, 'rb') as img:
+                audio_tags.tags.add(
+                    APIC(
+                        encoding=3,
+                        mime='image/jpeg',
+                        type=3,
+                        desc=u'Cover',
+                        data=img.read()
+                    )
+                )
+            audio_tags.tags.add(TIT2(encoding=3, text="808CODE"))
+            audio_tags.save()
+        except Exception as tag_err:
+            print(f"Tag error: {tag_err}")
+
         chat_id = update.message.chat_id if update.message else update.callback_query.message.chat_id
 
-        if os.path.exists(post_cover_path) and os.path.exists(cut_path) and os.path.exists(track_cover_path):
-            with open(post_cover_path, 'rb') as photo_file, open(cut_path, 'rb') as audio_file_obj, open(track_cover_path, 'rb') as thumb_file:
-                # ارسال فایل صوتی همراه با عکس کاور پست و متن دلخواه شما به عنوان کپشن یکپارچه
+        # 3. ارسال فایل صوتی
+        if os.path.exists(cut_path) and os.path.exists(track_cover_path):
+            with open(cut_path, 'rb') as audio_file_obj, open(track_cover_path, 'rb') as thumb_file:
                 await context.bot.send_audio(
                     chat_id=chat_id,
                     audio=audio_file_obj,
@@ -188,7 +204,7 @@ async def process_and_send_post(update, context, status_msg, caption_text=None, 
         await status_msg.edit_text(f"❌ خطا در پردازش: {str(e)}")
 
     finally:
-        for f in [file_path, cut_path, track_cover_path, post_cover_path]:
+        for f in [file_path, cut_path, track_cover_path]:
             if f and os.path.exists(f):
                 os.remove(f)
 
