@@ -41,6 +41,26 @@ def time_to_ms(time_str: str) -> int:
         return int(parts[0]) * 1000
     return 0
 
+def extract_track_info(text: str, fallback_title: str) -> str:
+    """استخراج هوشمند عنوان و کد بیت از متن کپشن کاربر"""
+    code_match = re.search(r'#808_\d+', text)
+    beat_code = code_match.group(0) if code_match else ""
+
+    title_match = re.search(r'Title:\s*([^\n\r]+)', text, re.IGNORECASE)
+    if title_match:
+        song_title = title_match.group(1).strip()
+    else:
+        song_title = fallback_title
+
+    if song_title and beat_code:
+        return f"{song_title} ({beat_code})"
+    elif beat_code:
+        return f"808CODE ({beat_code})"
+    elif song_title:
+        return song_title
+    else:
+        return "808CODE"
+
 async def post_init(application):
     commands = [
         BotCommand("start", "شروع ساخت پست جدید و ریست ربات"),
@@ -108,6 +128,11 @@ async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     user_data['audio_file_id'] = audio.file_id
+    
+    file_name = getattr(audio, 'file_name', '') or ''
+    fallback_title = os.path.splitext(file_name)[0] if file_name else ""
+    user_data['fallback_title'] = fallback_title
+
     await update.message.reply_text(
         "✅ فایل صوتی دریافت شد!\n\n"
         "📝 حالا **متن دلخواه خودتان** (همراه با زمان برش مثل `0:30 - 1:00` اگر نیاز است) را بفرستید."
@@ -136,7 +161,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await process_and_send_post(update, context, status_msg, caption_text=user_text, start_ms=start_ms, end_ms=end_ms)
 
-async def process_and_send_post(update, context, status_msg, caption_text=None, start_ms=0, end_ms=30000):
+async def process_and_send_post(update, context, status_msg, caption_text="", start_ms=0, end_ms=30000):
     user_data = context.user_data
     
     timestamp = int(time.time())
@@ -151,12 +176,13 @@ async def process_and_send_post(update, context, status_msg, caption_text=None, 
         audio_file = await context.bot.get_file(user_data['audio_file_id'])
         await audio_file.download_to_drive(file_path)
 
-        # 1. برش فایل صوتی
+        fallback_title = user_data.get('fallback_title', '')
+        custom_title = extract_track_info(caption_text, fallback_title)
+
         song = AudioSegment.from_file(file_path)
         cut_song = song[start_ms:min(end_ms, len(song))]
         cut_song.fade_out(1000).export(cut_path, format="mp3")
 
-        # 2. حذف کامل متادیتای قبلی و ساخت ID3 Tag جدید
         try:
             try:
                 audio_tags = ID3(cut_path)
@@ -175,8 +201,7 @@ async def process_and_send_post(update, context, status_msg, caption_text=None, 
                         data=img.read()
                     )
                 )
-            # استفاده از شناسه یونیک برای جلوگیری از کش سرورهای تلگرام
-            audio_tags.add(TIT2(encoding=3, text=f"808CODE #{timestamp % 1000}"))
+            audio_tags.add(TIT2(encoding=3, text=custom_title))
             audio_tags.add(TPE1(encoding=3, text="808CODE"))
             audio_tags.save(cut_path)
         except Exception as tag_err:
@@ -184,7 +209,6 @@ async def process_and_send_post(update, context, status_msg, caption_text=None, 
 
         chat_id = update.message.chat_id if update.message else update.callback_query.message.chat_id
 
-        # 3. ارسال به تلگرام با Thumbnail اختصاصی
         if os.path.exists(cut_path) and os.path.exists(track_cover_path):
             with open(cut_path, 'rb') as audio_file_obj, open(track_cover_path, 'rb') as thumb_file:
                 await context.bot.send_audio(
@@ -192,7 +216,7 @@ async def process_and_send_post(update, context, status_msg, caption_text=None, 
                     audio=audio_file_obj,
                     thumbnail=thumb_file,
                     caption=caption_text,
-                    title=f"808CODE #{timestamp % 1000}",
+                    title=custom_title,
                     performer="808CODE"
                 )
 
