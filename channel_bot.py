@@ -88,7 +88,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "۱. **عکس کاور بیت** را بفرستید.\n"
         "۲. **فایل صوتی / بیت** خود را بفرستید.\n"
         "۳. **متن دلخواه خودتان** را بفرستید.\n"
-        "💡 *نکته:* اگر زمانی مشخص نکنید، به صورت خودکار **۳۰ ثانیه اول** (0:00 - 0:30) برش داده می‌شود.\n\n"
+        "💡 *نکته:* اگر زمانی مشخص نکنید، به صورت خودکار **۱۵ ثانیه اول** (0:00 - 0:15) برش داده می‌شود.\n\n"
         "👇 از دکمه زیر یا منوی دستورات هم می‌توانید استفاده کنید:",
         reply_markup=reply_markup
     )
@@ -144,7 +144,7 @@ async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "✅ فایل صوتی دریافت شد!\n\n"
         "📝 حالا **متن دلخواه خودتان** را بفرستید.\n"
-        "⏱️ اگر زمانی قید کنید (مثلاً `0:14`) از همان ثانیه ۳۰ ثانیه برش می‌خورد. اگر زمانی نفرستید به صورت خودکار ۳۰ ثانیه اول (`0:00 - 0:30`) برش داده می‌شود."
+        "⏱️ اگر زمانی قید کنید (مثلاً `0:14`) از همان ثانیه ۱۵ ثانیه برش می‌خورد. اگر زمانی نفرستید به صورت خودکار ۱۵ ثانیه اول (`0:00 - 0:15`) برش داده می‌شود."
     )
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -165,10 +165,10 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         end_ms = time_to_ms(time_match[1])
     elif len(time_match) == 1:
         start_ms = time_to_ms(time_match[0])
-        end_ms = start_ms + 30000  # ۳۰ ثانیه بعد از زمان داده شده
+        end_ms = start_ms + 15000  # ۱۵ ثانیه بعد از زمان داده شده
     else:
         start_ms = 0
-        end_ms = 30000  # پیش‌فرض: ۰ تا ۳۰ ثانیه
+        end_ms = 15000  # پیش‌فرض: ۰ تا ۱۵ ثانیه
 
     # پاکسازی زمان از کپشن نهایی
     final_caption = clean_caption_text(raw_user_text)
@@ -181,7 +181,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         end_ms=end_ms
     )
 
-async def process_and_send_post(update, context, status_msg, caption_text="", raw_text_for_info="", start_ms=0, end_ms=30000):
+async def process_and_send_post(update, context, status_msg, caption_text="", raw_text_for_info="", start_ms=0, end_ms=15000):
     user_data = context.user_data
     
     timestamp = int(time.time())
@@ -201,7 +201,7 @@ async def process_and_send_post(update, context, status_msg, caption_text="", ra
         fallback_title = user_data.get('fallback_title', '')
         custom_title = extract_track_info(raw_text_for_info, fallback_title)
 
-        # پردازش صوت (برش ۳۰ ثانیه‌ای)
+        # پردازش صوت (برش ۱۵ ثانیه‌ای)
         song = AudioSegment.from_file(file_path)
         cut_song = song[start_ms:min(end_ms, len(song))]
         cut_song.fade_out(1000).export(cut_path, format="mp3")
