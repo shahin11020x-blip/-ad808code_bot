@@ -21,6 +21,7 @@ from telegram.ext import (
 TELEGRAM_TOKEN = "8831739954:AAG8w-rh9KK1zbDZBQzqLHqlvONmZAQH-sM"
 GITHUB_RAW_URL = "https://raw.githubusercontent.com/shahin11020x-blip/-ad808code_bot/main/channel_bot.py"
 PURCHASE_LINK = "https://t.me/ad_808code"
+TARGET_CHANNEL_ID = -1004302808319
 
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -97,8 +98,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "✨ **مراحل ساخت پست جدید:**\n"
         "۱. **عکس کاور بیت** را بفرستید.\n"
         "۲. **فایل صوتی / بیت** خود را بفرستید.\n"
-        "۳. **متن دلخواه خودتان** (به همراه زمان برش و لینک یوتیوب) را بفرستید.\n"
-        "💡 *نکته:* اگر زمانی مشخص نکنید، به صورت خودکار **۱۵ ثانیه اول** (0:00 - 0:15) برش داده می‌شود.\n\n"
+        "۳. **متن دلخواه خودتان** را بفرستید.\n\n"
+        "⏱️ *نکته زمان‌بندی:* اگر زمانی قید کنید (مثلاً `0:10`) ۱۵ ثانیه از آن ثانیه برش داده می‌شود. اگر زمانی قید نشود، به صورت خودکار **۱۵ ثانیه اول (0:00 - 0:15)** برش داده می‌شود.\n\n"
         "👇 از دکمه زیر یا منوی دستورات هم می‌توانید استفاده کنید:",
         reply_markup=reply_markup
     )
@@ -125,8 +126,11 @@ async def update_bot(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+
     if query.data == "btn_update":
         await update_bot(query, context)
+    elif query.data == "send_to_channel":
+        await send_preview_to_channel(update, context)
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = context.user_data
@@ -154,7 +158,7 @@ async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "✅ فایل صوتی دریافت شد!\n\n"
         "📝 حالا **متن دلخواه خودتان** را بفرستید.\n"
-        "⏱️ اگر زمانی قید کنید (مثلاً `0:14`) از همان ثانیه ۱۵ ثانیه برش می‌خورد. اگر زمانی نفرستید به صورت خودکار ۱۵ ثانیه اول (`0:00 - 0:15`) برش داده می‌شود.\n"
+        "⏱️ اگر زمانی قید کنید (مثلاً `0:14`) ۱۵ ثانیه از آن ثانیه برش می‌خورد. اگر زمانی نفرستید به صورت خودکار ۱۵ ثانیه اول (`0:00 - 0:15`) برش داده می‌شود.\n"
         "🔗 *نکته:* می‌توانید لینک یوتیوب ترک را هم در متن بگذارید تا روی دکمه شیشه‌ای تنظیم شود."
     )
 
@@ -166,7 +170,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     raw_user_text = update.message.text.strip()
-    status_msg = await update.message.reply_text("⏳ در حال پردازش، تزریق عکس و ارسال پست...")
+    status_msg = await update.message.reply_text("⏳ در حال پردازش صوت و برش ۱۵ ثانیه‌ای...")
 
     # بررسی وجود زمان برش در متن
     time_match = re.findall(r'\b\d{1,2}:\d{2}\b', raw_user_text)
@@ -184,18 +188,16 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     youtube_url = extract_youtube_url(raw_user_text)
     final_caption = clean_caption_text(raw_user_text)
 
-    await process_and_send_post(
-        update, context, status_msg, 
-        caption_text=final_caption, 
-        raw_text_for_info=raw_user_text,
-        youtube_url=youtube_url,
-        start_ms=start_ms, 
-        end_ms=end_ms
-    )
+    user_data['caption_text'] = final_caption
+    user_data['raw_text_for_info'] = raw_user_text
+    user_data['youtube_url'] = youtube_url
+    user_data['start_ms'] = start_ms
+    user_data['end_ms'] = end_ms
 
-async def process_and_send_post(update, context, status_msg, caption_text="", raw_text_for_info="", youtube_url="", start_ms=0, end_ms=15000):
+    await process_and_send_preview(update, context, status_msg)
+
+async def process_and_send_preview(update, context, status_msg):
     user_data = context.user_data
-    
     timestamp = int(time.time())
     track_cover_path = f"cover_{timestamp}.jpg"
     file_path = f"raw_{timestamp}.mp3"
@@ -209,11 +211,15 @@ async def process_and_send_post(update, context, status_msg, caption_text="", ra
         audio_file = await context.bot.get_file(user_data['audio_file_id'])
         await audio_file.download_to_drive(file_path)
 
-        # استخراج هوشمند اطلاعات
+        # استخراج اطلاعات
         fallback_title = user_data.get('fallback_title', '')
+        raw_text_for_info = user_data.get('raw_text_for_info', '')
         custom_title = extract_track_info(raw_text_for_info, fallback_title)
 
-        # پردازش صوت (برش ۱۵ ثانیه‌ای)
+        # پردازش صوت
+        start_ms = user_data.get('start_ms', 0)
+        end_ms = user_data.get('end_ms', 15000)
+        
         song = AudioSegment.from_file(file_path)
         cut_song = song[start_ms:min(end_ms, len(song))]
         cut_song.fade_out(1000).export(cut_path, format="mp3")
@@ -243,42 +249,95 @@ async def process_and_send_post(update, context, status_msg, caption_text="", ra
         except Exception as tag_err:
             print(f"Tag error: {tag_err}")
 
-        # ساخت دکمه‌های شیشه‌ای
-        keyboard = []
+        # دکمه‌های شیشه‌ای مربوط به خود پست
+        youtube_url = user_data.get('youtube_url', '')
         yt_link = youtube_url if youtube_url else "https://youtube.com"
-        keyboard.append([InlineKeyboardButton("🎧 Listen to full", url=yt_link)])
-        keyboard.append([InlineKeyboardButton("🛒 Buy", url=PURCHASE_LINK)])
         
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        chat_id = update.message.chat_id if update.message else update.callback_query.message.chat_id
+        post_keyboard = [
+            [InlineKeyboardButton("🎧 Listen to full", url=yt_link)],
+            [InlineKeyboardButton("🛒 Buy", url=PURCHASE_LINK)]
+        ]
+        post_markup = InlineKeyboardMarkup(post_keyboard)
 
-        # ارسال فایل نهایی
+        # ارسال پیش‌نمایش به خود کاربر در چت شخصی
         if os.path.exists(cut_path) and os.path.exists(track_cover_path):
             with open(cut_path, 'rb') as audio_file_obj, open(track_cover_path, 'rb') as thumb_file:
-                await context.bot.send_audio(
-                    chat_id=chat_id,
+                sent_audio = await context.bot.send_audio(
+                    chat_id=update.message.chat_id,
                     audio=audio_file_obj,
                     thumbnail=thumb_file,
-                    caption=caption_text,
+                    caption=user_data.get('caption_text', ''),
                     title=custom_title,
                     performer="808CODE",
-                    reply_markup=reply_markup
+                    reply_markup=post_markup
                 )
+                
+                # ذخیره شناسه فایل پردازش شده برای ارسال مجدد به کانال
+                user_data['processed_audio_file_id'] = sent_audio.audio.file_id
+                user_data['processed_custom_title'] = custom_title
 
-        await status_msg.edit_text("🚀 **پست با موفقیت ارسال شد!**", parse_mode="Markdown")
-        user_data.clear()
+        await status_msg.delete()
+
+        # ارسال پیام همراه دکمه «ارسال به کانال»
+        channel_keyboard = [
+            [InlineKeyboardButton("📢 ارسال به کانال", callback_data="send_to_channel")]
+        ]
+        channel_markup = InlineKeyboardMarkup(channel_keyboard)
+
+        await update.message.reply_text(
+            "👆 **پیش‌نمایش پست شما آماده شد!**\n\n"
+            "می‌توانید پست بالا را بررسی کنید. در صورت تأیید، روی دکمه زیر بزنید تا مستقیماً به کانال ارسال شود:",
+            reply_markup=channel_markup,
+            parse_mode="Markdown"
+        )
 
     except Exception as e:
         await status_msg.edit_text(f"❌ خطا در پردازش: {str(e)}")
 
     finally:
-        # پاکسازی فایل‌های موقت از روی سرور
+        # پاکسازی فایل‌های موقت
         for f in [file_path, cut_path, track_cover_path]:
             if f and os.path.exists(f):
                 try:
                     os.remove(f)
                 except Exception:
                     pass
+
+async def send_preview_to_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user_data = context.user_data
+
+    if not user_data.get('processed_audio_file_id'):
+        await query.message.edit_text("❌ متأسفانه اطلاعات پست پیدا نشد. لطفاً مراحل را دوباره طی کنید.")
+        return
+
+    try:
+        await query.message.edit_text("⏳ در حال ارسال پست به کانال...")
+
+        youtube_url = user_data.get('youtube_url', '')
+        yt_link = youtube_url if youtube_url else "https://youtube.com"
+        
+        post_keyboard = [
+            [InlineKeyboardButton("🎧 Listen to full", url=yt_link)],
+            [InlineKeyboardButton("🛒 Buy", url=PURCHASE_LINK)]
+        ]
+        post_markup = InlineKeyboardMarkup(post_keyboard)
+
+        # ارسال به کانال هدف
+        await context.bot.send_audio(
+            chat_id=TARGET_CHANNEL_ID,
+            audio=user_data['processed_audio_file_id'],
+            caption=user_data.get('caption_text', ''),
+            title=user_data.get('processed_custom_title', '808CODE'),
+            performer="808CODE",
+            reply_markup=post_markup
+        )
+
+        await query.message.edit_text("🚀 **پست با موفقیت در کانال منتشر شد!**", parse_mode="Markdown")
+        user_data.clear()
+
+    except Exception as e:
+        await query.message.edit_text(f"❌ خطا در ارسال به کانال: {str(e)}")
 
 if __name__ == '__main__':
     threading.Thread(target=run_web_server, daemon=True).start()
