@@ -20,6 +20,7 @@ from telegram.ext import (
 
 TELEGRAM_TOKEN = "8831739954:AAG8w-rh9KK1zbDZBQzqLHqlvONmZAQH-sM"
 GITHUB_RAW_URL = "https://raw.githubusercontent.com/shahin11020x-blip/-ad808code_bot/main/channel_bot.py"
+PURCHASE_LINK = "https://t.me/ad_808code"
 
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -61,10 +62,19 @@ def extract_track_info(text: str, fallback_title: str) -> str:
     else:
         return "808CODE"
 
+def extract_youtube_url(text: str) -> str:
+    """استخراج لینک یوتیوب از متن ارسال شده"""
+    yt_regex = r'(https?://(?:www\.)?(?:youtube\.com|youtu\.be)/[^\s]+)'
+    match = re.search(yt_regex, text)
+    if match:
+        return match.group(0)
+    return ""
+
 def clean_caption_text(text: str) -> str:
-    """پاکسازی زمان‌های برش از متن کپشن نهایی"""
+    """پاکسازی زمان‌های برش و لینک یوتیوب از متن کپشن نهایی"""
     cleaned = re.sub(r'\b\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}\b', '', text)
     cleaned = re.sub(r'\b\d{1,2}:\d{2}\b', '', cleaned)
+    cleaned = re.sub(r'(https?://(?:www\.)?(?:youtube\.com|youtu\.be)/[^\s]+)', '', cleaned)
     cleaned_lines = [line for line in cleaned.splitlines() if line.strip() != '']
     return '\n'.join(cleaned_lines).strip()
 
@@ -87,7 +97,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "✨ **مراحل ساخت پست جدید:**\n"
         "۱. **عکس کاور بیت** را بفرستید.\n"
         "۲. **فایل صوتی / بیت** خود را بفرستید.\n"
-        "۳. **متن دلخواه خودتان** را بفرستید.\n"
+        "۳. **متن دلخواه خودتان** (به همراه زمان برش و لینک یوتیوب) را بفرستید.\n"
         "💡 *نکته:* اگر زمانی مشخص نکنید، به صورت خودکار **۱۵ ثانیه اول** (0:00 - 0:15) برش داده می‌شود.\n\n"
         "👇 از دکمه زیر یا منوی دستورات هم می‌توانید استفاده کنید:",
         reply_markup=reply_markup
@@ -144,7 +154,8 @@ async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "✅ فایل صوتی دریافت شد!\n\n"
         "📝 حالا **متن دلخواه خودتان** را بفرستید.\n"
-        "⏱️ اگر زمانی قید کنید (مثلاً `0:14`) از همان ثانیه ۱۵ ثانیه برش می‌خورد. اگر زمانی نفرستید به صورت خودکار ۱۵ ثانیه اول (`0:00 - 0:15`) برش داده می‌شود."
+        "⏱️ اگر زمانی قید کنید (مثلاً `0:14`) از همان ثانیه ۱۵ ثانیه برش می‌خورد. اگر زمانی نفرستید به صورت خودکار ۱۵ ثانیه اول (`0:00 - 0:15`) برش داده می‌شود.\n"
+        "🔗 *نکته:* می‌توانید لینک یوتیوب ترک را هم در متن بگذارید تا روی دکمه شیشه‌ای تنظیم شود."
     )
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -170,18 +181,19 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         start_ms = 0
         end_ms = 15000  # پیش‌فرض: ۰ تا ۱۵ ثانیه
 
-    # پاکسازی زمان از کپشن نهایی
+    youtube_url = extract_youtube_url(raw_user_text)
     final_caption = clean_caption_text(raw_user_text)
 
     await process_and_send_post(
         update, context, status_msg, 
         caption_text=final_caption, 
         raw_text_for_info=raw_user_text,
+        youtube_url=youtube_url,
         start_ms=start_ms, 
         end_ms=end_ms
     )
 
-async def process_and_send_post(update, context, status_msg, caption_text="", raw_text_for_info="", start_ms=0, end_ms=15000):
+async def process_and_send_post(update, context, status_msg, caption_text="", raw_text_for_info="", youtube_url="", start_ms=0, end_ms=15000):
     user_data = context.user_data
     
     timestamp = int(time.time())
@@ -231,6 +243,13 @@ async def process_and_send_post(update, context, status_msg, caption_text="", ra
         except Exception as tag_err:
             print(f"Tag error: {tag_err}")
 
+        # ساخت دکمه‌های شیشه‌ای
+        keyboard = []
+        yt_link = youtube_url if youtube_url else "https://youtube.com"
+        keyboard.append([InlineKeyboardButton("🎧 Listen Full Beat", url=yt_link)])
+        keyboard.append([InlineKeyboardButton("🛒 Buy", url=PURCHASE_LINK)])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
         chat_id = update.message.chat_id if update.message else update.callback_query.message.chat_id
 
         # ارسال فایل نهایی
@@ -242,7 +261,8 @@ async def process_and_send_post(update, context, status_msg, caption_text="", ra
                     thumbnail=thumb_file,
                     caption=caption_text,
                     title=custom_title,
-                    performer="808CODE"
+                    performer="808CODE",
+                    reply_markup=reply_markup
                 )
 
         await status_msg.edit_text("🚀 **پست با موفقیت ارسال شد!**", parse_mode="Markdown")
