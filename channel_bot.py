@@ -246,7 +246,7 @@ async def process_and_send_post(update, context, status_msg, caption_text="", ra
         # ساخت دکمه‌های شیشه‌ای
         keyboard = []
         yt_link = youtube_url if youtube_url else "https://youtube.com"
-        keyboard.append([InlineKeyboardButton("🎧 Listen Full Beat", url=yt_link)])
+        keyboard.append([InlineKeyboardButton("🎧 Listen to full", url=yt_link)])
         keyboard.append([InlineKeyboardButton("🛒 Buy", url=PURCHASE_LINK)])
         
         reply_markup = InlineKeyboardMarkup(keyboard)
