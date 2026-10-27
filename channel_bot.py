@@ -71,11 +71,20 @@ def extract_youtube_url(text: str) -> str:
         return match.group(0)
     return ""
 
+def extract_soundcloud_url(text: str) -> str:
+    """استخراج لینک ساندکلاد از متن ارسال شده"""
+    sc_regex = r'(https?://(?:www\.)?(?:soundcloud\.com|on\.soundcloud\.com)/[^\s]+)'
+    match = re.search(sc_regex, text)
+    if match:
+        return match.group(0)
+    return ""
+
 def clean_caption_text(text: str) -> str:
-    """پاکسازی زمان‌های برش و لینک یوتیوب از متن کپشن نهایی"""
+    """پاکسازی زمان‌های برش و لینک‌های یوتیوب و ساندکلاد از متن کپشن نهایی"""
     cleaned = re.sub(r'\b\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}\b', '', text)
     cleaned = re.sub(r'\b\d{1,2}:\d{2}\b', '', cleaned)
     cleaned = re.sub(r'(https?://(?:www\.)?(?:youtube\.com|youtu\.be)/[^\s]+)', '', cleaned)
+    cleaned = re.sub(r'(https?://(?:www\.)?(?:soundcloud\.com|on\.soundcloud\.com)/[^\s]+)', '', cleaned)
     cleaned_lines = [line for line in cleaned.splitlines() if line.strip() != '']
     return '\n'.join(cleaned_lines).strip()
 
@@ -111,7 +120,7 @@ async def update_bot(update: Update, context: ContextTypes.DEFAULT_TYPE):
         with urllib.request.urlopen(req) as response:
             new_code = response.read().decode('utf-8')
             
-        if "def process_and_send_post" not in new_code:
+        if "def process_and_send_preview" not in new_code:
             await msg.edit_text("❌ خطا: فایل دانلود شده معتبر به نظر نمی‌رسد.")
             return
 
@@ -159,7 +168,7 @@ async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "✅ فایل صوتی دریافت شد!\n\n"
         "📝 حالا **متن دلخواه خودتان** را بفرستید.\n"
         "⏱️ اگر زمانی قید کنید (مثلاً `0:14`) ۱۵ ثانیه از آن ثانیه برش می‌خورد. اگر زمانی نفرستید به صورت خودکار ۱۵ ثانیه اول (`0:00 - 0:15`) برش داده می‌شود.\n"
-        "🔗 *نکته:* می‌توانید لینک یوتیوب ترک را هم در متن بگذارید تا روی دکمه شیشه‌ای تنظیم شود."
+        "🔗 *نکته:* می‌توانید لینک‌های YouTube و SoundCloud را هم در متن بگذارید تا روی دکمه‌های شیشه‌ای تنظیم شوند."
     )
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -186,11 +195,13 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         end_ms = 15000  # پیش‌فرض: ۰ تا ۱۵ ثانیه
 
     youtube_url = extract_youtube_url(raw_user_text)
+    soundcloud_url = extract_soundcloud_url(raw_user_text)
     final_caption = clean_caption_text(raw_user_text)
 
     user_data['caption_text'] = final_caption
     user_data['raw_text_for_info'] = raw_user_text
     user_data['youtube_url'] = youtube_url
+    user_data['soundcloud_url'] = soundcloud_url
     user_data['start_ms'] = start_ms
     user_data['end_ms'] = end_ms
 
@@ -249,13 +260,17 @@ async def process_and_send_preview(update, context, status_msg):
         except Exception as tag_err:
             print(f"Tag error: {tag_err}")
 
-        # دکمه‌های شیشه‌ای مربوط به خود پست
+        # دکمه‌های شیشه‌ای جدید
         youtube_url = user_data.get('youtube_url', '')
         yt_link = youtube_url if youtube_url else "https://youtube.com"
+
+        soundcloud_url = user_data.get('soundcloud_url', '')
+        sc_link = soundcloud_url if soundcloud_url else "https://soundcloud.com"
         
         post_keyboard = [
-            [InlineKeyboardButton("🎧 Listen to full", url=yt_link)],
-            [InlineKeyboardButton("🛒 Buy", url=PURCHASE_LINK)]
+            [InlineKeyboardButton("YouTube", url=yt_link)],
+            [InlineKeyboardButton("SoundCloud", url=sc_link)],
+            [InlineKeyboardButton("MP3 / WAV / Stems", url=PURCHASE_LINK)]
         ]
         post_markup = InlineKeyboardMarkup(post_keyboard)
 
@@ -316,10 +331,14 @@ async def send_preview_to_channel(update: Update, context: ContextTypes.DEFAULT_
 
         youtube_url = user_data.get('youtube_url', '')
         yt_link = youtube_url if youtube_url else "https://youtube.com"
+
+        soundcloud_url = user_data.get('soundcloud_url', '')
+        sc_link = soundcloud_url if soundcloud_url else "https://soundcloud.com"
         
         post_keyboard = [
-            [InlineKeyboardButton("🎧 Listen to full", url=yt_link)],
-            [InlineKeyboardButton("🛒 Buy", url=PURCHASE_LINK)]
+            [InlineKeyboardButton("YouTube", url=yt_link)],
+            [InlineKeyboardButton("SoundCloud", url=sc_link)],
+            [InlineKeyboardButton("MP3 / WAV / Stems", url=PURCHASE_LINK)]
         ]
         post_markup = InlineKeyboardMarkup(post_keyboard)
 
