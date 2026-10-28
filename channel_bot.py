@@ -81,11 +81,21 @@ def extract_soundcloud_url(text: str) -> str:
     return ""
 
 def clean_caption_text(text: str) -> str:
-    """پاکسازی زمان‌های برش و لینک‌های یوتیوب و ساندکلاد از متن کپشن نهایی"""
-    cleaned = re.sub(r'\b\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}\b', '', text)
+    """پاکسازی زمان‌های برش، متن پیش‌فرض ساندکلاد و لینک‌های یوتیوب و ساندکلاد"""
+    # پاکسازی متون اضافی متداول در Share ساندکلاد (مانند Listen to ... on #SoundCloud)
+    cleaned = re.sub(r'Listen to\s+.*?\s+on\s+#SoundCloud', '', text, flags=re.IGNORECASE)
+    cleaned = re.sub(r'Listen to\s+.*?\s+on\s+SoundCloud', '', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'#SoundCloud', '', cleaned, flags=re.IGNORECASE)
+
+    # پاکسازی زمان‌های برش
+    cleaned = re.sub(r'\b\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}\b', '', cleaned)
     cleaned = re.sub(r'\b\d{1,2}:\d{2}\b', '', cleaned)
+
+    # پاکسازی لینک‌های یوتیوب و ساندکلاد
     cleaned = re.sub(r'(https?://(?:www\.)?(?:youtube\.com|youtu\.be)/[^\s]+)', '', cleaned)
     cleaned = re.sub(r'(https?://(?:www\.)?(?:soundcloud\.com|on\.soundcloud\.com)/[^\s]+)', '', cleaned)
+
+    # حذف خطوط خالی اضافی
     cleaned_lines = [line for line in cleaned.splitlines() if line.strip() != '']
     return '\n'.join(cleaned_lines).strip()
 
