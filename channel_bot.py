@@ -18,7 +18,8 @@ from telegram.ext import (
     ContextTypes
 )
 
-TELEGRAM_TOKEN = "8831739954:AAG8w-rh9KK1zbDZBQzqLHqlvONmZAQH-sM"
+# دریافت توکن جدید از سرور رندر یا مقدار پیش‌فرض
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8831739954:AAHQXZFcV-rUA7GKXws_9OvIhtWtLT_Zb58")
 GITHUB_RAW_URL = "https://raw.githubusercontent.com/shahin11020x-blip/-ad808code_bot/main/channel_bot.py"
 PURCHASE_LINK = "https://t.me/ad_808code"
 TARGET_CHANNEL_ID = -1004302808319
