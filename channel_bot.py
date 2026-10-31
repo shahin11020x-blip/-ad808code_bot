@@ -95,6 +95,31 @@ def clean_caption_text(text: str) -> str:
     cleaned_lines = [line for line in cleaned.splitlines() if line.strip() != '']
     return '\n'.join(cleaned_lines).strip()
 
+def embed_metadata(mp3_path, image_path, title, artist="808CODE"):
+    try:
+        try:
+            tags = ID3(mp3_path)
+            tags.delete()
+        except Exception:
+            pass
+
+        tags = ID3()
+        with open(image_path, 'rb') as img:
+            tags.add(
+                APIC(
+                    encoding=3,
+                    mime='image/jpeg',
+                    type=3,
+                    desc='Cover',
+                    data=img.read()
+                )
+            )
+        tags.add(TIT2(encoding=3, text=title))
+        tags.add(TPE1(encoding=3, text=artist))
+        tags.save(mp3_path, v2_version=3)
+    except Exception as e:
+        print(f"Error tagging metadata: {e}")
+
 async def post_init(application):
     commands = [
         BotCommand("start", "شروع ساخت پست جدید و ریست ربات"),
@@ -212,31 +237,9 @@ async def process_soundcloud_full(update, context: ContextTypes.DEFAULT_TYPE, st
         custom_title = extract_track_info(beat_code_input, fallback_title)
 
         song = AudioSegment.from_file(file_path)
-        song.export(out_path, format="mp3")
+        song.export(out_path, format="mp3", bitrate="320k")
 
-        try:
-            try:
-                audio_tags = ID3(out_path)
-                audio_tags.delete()
-            except error:
-                pass
-
-            audio_tags = ID3()
-            with open(track_cover_path, 'rb') as img:
-                audio_tags.add(
-                    APIC(
-                        encoding=3,
-                        mime='image/jpeg',
-                        type=3,
-                        desc=u'Cover',
-                        data=img.read()
-                    )
-                )
-            audio_tags.add(TIT2(encoding=3, text=custom_title))
-            audio_tags.add(TPE1(encoding=3, text="808CODE"))
-            audio_tags.save(out_path, v2_version=3)
-        except Exception as tag_err:
-            print(f"Tag error: {tag_err}")
+        embed_metadata(out_path, track_cover_path, custom_title, "808CODE")
 
         await status_msg.delete()
 
@@ -325,31 +328,9 @@ async def process_and_send_preview(update, context, status_msg):
         
         song = AudioSegment.from_file(file_path)
         cut_song = song[start_ms:min(end_ms, len(song))]
-        cut_song.fade_out(1000).export(cut_path, format="mp3")
+        cut_song.fade_out(1000).export(cut_path, format="mp3", bitrate="320k")
 
-        try:
-            try:
-                audio_tags = ID3(cut_path)
-                audio_tags.delete()
-            except error:
-                pass
-
-            audio_tags = ID3()
-            with open(track_cover_path, 'rb') as img:
-                audio_tags.add(
-                    APIC(
-                        encoding=3,
-                        mime='image/jpeg',
-                        type=3,
-                        desc=u'Cover',
-                        data=img.read()
-                    )
-                )
-            audio_tags.add(TIT2(encoding=3, text=custom_title))
-            audio_tags.add(TPE1(encoding=3, text="808CODE"))
-            audio_tags.save(cut_path, v2_version=3)
-        except Exception as tag_err:
-            print(f"Tag error: {tag_err}")
+        embed_metadata(cut_path, track_cover_path, custom_title, "808CODE")
 
         youtube_url = user_data.get('youtube_url', '')
         yt_link = youtube_url if youtube_url else "https://youtube.com"
