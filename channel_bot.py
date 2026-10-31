@@ -234,7 +234,7 @@ async def process_soundcloud_full(update, context: ContextTypes.DEFAULT_TYPE, st
                 )
             audio_tags.add(TIT2(encoding=3, text=custom_title))
             audio_tags.add(TPE1(encoding=3, text="808CODE"))
-            audio_tags.save(out_path)
+            audio_tags.save(out_path, v2_version=3)
         except Exception as tag_err:
             print(f"Tag error: {tag_err}")
 
@@ -349,7 +349,7 @@ async def process_and_send_preview(update, context, status_msg):
                 )
             audio_tags.add(TIT2(encoding=3, text=custom_title))
             audio_tags.add(TPE1(encoding=3, text="808CODE"))
-            audio_tags.save(cut_path)
+            audio_tags.save(cut_path, v2_version=3)
         except Exception as tag_err:
             print(f"Tag error: {tag_err}")
 
