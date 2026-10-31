@@ -17,7 +17,6 @@ CallbackQueryHandler,
 filters,
 ContextTypes
 )
-​TELEGRAM TOKEN
 ​TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8831739954:AAHQXZFcV-rUA7GKXws_9OvIhtWtLT_Zb58")
 GITHUB_RAW_URL = "https://raw.githubusercontent.com/shahin11020x-blip/-ad808code_bot/main/channel_bot.py"
 PURCHASE_LINK = "https://t.me/ad_808code"
