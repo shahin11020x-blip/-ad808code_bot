@@ -44,8 +44,8 @@ def time_to_ms(time_str: str) -> int:
     return 0
 
 def extract_track_info(text: str, fallback_title: str) -> str:
-    code_match = re.search(r'#808_\d+', text)
-    beat_code = code_match.group(0) if code_match else text.strip()
+    code_match = re.search(r'#808_\d+|808_\d+', text)
+    beat_code = f"#{code_match.group(0).lstrip('#')}" if code_match else text.strip()
 
     title_match = re.search(r'Title:\s*([^\n\r]+)', text, re.IGNORECASE)
     if title_match:
@@ -245,10 +245,8 @@ async def process_soundcloud_full(update, context: ContextTypes.DEFAULT_TYPE, st
                 chat_id=update.message.chat_id,
                 audio=audio_file_obj,
                 thumbnail=thumb_file,
-                caption=f"☁️ **فایل کامل شما مخصوص آپلود در ساندکلاد آماده شد!**\n\n📌 Title: `{custom_title}`\n👤 Artist: `808CODE`",
                 title=custom_title,
-                performer="808CODE",
-                parse_mode="Markdown"
+                performer="808CODE"
             )
 
     except Exception as e:
