@@ -82,20 +82,16 @@ def extract_soundcloud_url(text: str) -> str:
 
 def clean_caption_text(text: str) -> str:
     """پاکسازی زمان‌های برش، متن پیش‌فرض ساندکلاد و لینک‌های یوتیوب و ساندکلاد"""
-    # پاکسازی متون اضافی متداول در Share ساندکلاد (مانند Listen to ... on #SoundCloud)
     cleaned = re.sub(r'Listen to\s+.*?\s+on\s+#SoundCloud', '', text, flags=re.IGNORECASE)
     cleaned = re.sub(r'Listen to\s+.*?\s+on\s+SoundCloud', '', cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r'#SoundCloud', '', cleaned, flags=re.IGNORECASE)
 
-    # پاکسازی زمان‌های برش
     cleaned = re.sub(r'\b\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}\b', '', cleaned)
     cleaned = re.sub(r'\b\d{1,2}:\d{2}\b', '', cleaned)
 
-    # پاکسازی لینک‌های یوتیوب و ساندکلاد
     cleaned = re.sub(r'(https?://(?:www\.)?(?:youtube\.com|youtu\.be)/[^\s]+)', '', cleaned)
     cleaned = re.sub(r'(https?://(?:www\.)?(?:soundcloud\.com|on\.soundcloud\.com)/[^\s]+)', '', cleaned)
 
-    # حذف خطوط خالی اضافی
     cleaned_lines = [line for line in cleaned.splitlines() if line.strip() != '']
     return '\n'.join(cleaned_lines).strip()
 
@@ -115,12 +111,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         "سلام! 👋 به ربات مدیریت کانال موزیک خوش آمدید.\n\n"
-        "✨ **مراحل ساخت پست جدید:**\n"
+        "✨ **مراحل استفاده:**\n"
         "۱. **عکس کاور بیت** را بفرستید.\n"
         "۲. **فایل صوتی / بیت** خود را بفرستید.\n"
-        "۳. **متن دلخواه خودتان** را بفرستید.\n\n"
-        "⏱️ *نکته زمان‌بندی:* اگر زمانی قید کنید (مثلاً `0:10`) ۱۵ ثانیه از آن ثانیه برش داده می‌شود. اگر زمانی قید نشود، به صورت خودکار **۱۵ ثانیه اول (0:00 - 0:15)** برش داده می‌شود.\n\n"
-        "👇 از دکمه زیر یا منوی دستورات هم می‌توانید استفاده کنید:",
+        "۳. حالت انتشار (کانال یا نسخه ساندکلاد) را انتخاب کنید.\n\n"
+        "👇 برای شروع عکس کاور را ارسال کنید:",
         reply_markup=reply_markup
     )
 
@@ -143,15 +138,6 @@ async def update_bot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await msg.edit_text(f"❌ خطا در آپدیت خودکار: {str(e)}")
 
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-
-    if query.data == "btn_update":
-        await update_bot(query, context)
-    elif query.data == "send_to_channel":
-        await send_preview_to_channel(update, context)
-
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = context.user_data
     photo = update.message.photo[-1]
@@ -172,15 +158,109 @@ async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data['audio_file_id'] = audio.file_id
     
     file_name = getattr(audio, 'file_name', '') or ''
-    fallback_title = os.path.splitext(file_name)[0] if file_name else ""
+    fallback_title = os.path.splitext(file_name)[0] if file_name else "808CODE"
     user_data['fallback_title'] = fallback_title
+
+    keyboard = [
+        [InlineKeyboardButton("📢 پست کانال (برش + متن و دکمه‌ها)", callback_data="mode_channel")],
+        [InlineKeyboardButton("☁️ نسخه ساندکلاد (کامل + کاور و متادیتا)", callback_data="mode_soundcloud")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
 
     await update.message.reply_text(
         "✅ فایل صوتی دریافت شد!\n\n"
-        "📝 حالا **متن دلخواه خودتان** را بفرستید.\n"
-        "⏱️ اگر زمانی قید کنید (مثلاً `0:14`) ۱۵ ثانیه از آن ثانیه برش می‌خورد. اگر زمانی نفرستید به صورت خودکار ۱۵ ثانیه اول (`0:00 - 0:15`) برش داده می‌شود.\n"
-        "🔗 *نکته:* می‌توانید لینک‌های YouTube و SoundCloud را هم در متن بگذارید تا روی دکمه‌های شیشه‌ای تنظیم شوند."
+        "🎯 **لطفاً نحوه ساخت پست را انتخاب کنید:**",
+        reply_markup=reply_markup
     )
+
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == "btn_update":
+        await update_bot(query, context)
+    elif query.data == "send_to_channel":
+        await send_preview_to_channel(update, context)
+    elif query.data == "mode_channel":
+        context.user_data['mode'] = 'channel'
+        await query.message.edit_text(
+            "📝 حالا **متن دلخواه خودتان** را بفرستید.\n\n"
+            "⏱️ اگر زمانی قید کنید (مثلاً `0:14`) ۱۵ ثانیه از آن ثانیه برش می‌خورد. اگر زمانی نفرستید به صورت خودکار ۱۵ ثانیه اول (`0:00 - 0:15`) برش داده می‌شود.\n"
+            "🔗 *نکته:* می‌توانید لینک‌های YouTube و SoundCloud را هم در متن بگذارید."
+        )
+    elif query.data == "mode_soundcloud":
+        context.user_data['mode'] = 'soundcloud'
+        await query.message.edit_text("⏳ در حال ساخت نسخه کامل ساندکلاد (بدون برش) همراه با تزریق کاور و متادیتا...")
+        await process_soundcloud_full(query, context)
+
+async def process_soundcloud_full(query, context: ContextTypes.DEFAULT_TYPE):
+    user_data = context.user_data
+    timestamp = int(time.time())
+    track_cover_path = f"cover_{timestamp}.jpg"
+    file_path = f"raw_{timestamp}.mp3"
+    out_path = f"soundcloud_{timestamp}.mp3"
+
+    try:
+        # دانلود کاور و صوت
+        track_cover_file = await context.bot.get_file(user_data['default_track_cover_id'])
+        await track_cover_file.download_to_drive(track_cover_path)
+
+        audio_file = await context.bot.get_file(user_data['audio_file_id'])
+        await audio_file.download_to_drive(file_path)
+
+        custom_title = user_data.get('fallback_title', '808CODE')
+
+        # تبدیل فرمت در صورت نیاز بدون برش
+        song = AudioSegment.from_file(file_path)
+        song.export(out_path, format="mp3")
+
+        # تزریق کاور و متادیتا (ID3 Tags)
+        try:
+            try:
+                audio_tags = ID3(out_path)
+                audio_tags.delete()
+            except error:
+                pass
+
+            audio_tags = ID3()
+            with open(track_cover_path, 'rb') as img:
+                audio_tags.add(
+                    APIC(
+                        encoding=3,
+                        mime='image/jpeg',
+                        type=3,
+                        desc=u'Cover',
+                        data=img.read()
+                    )
+                )
+            audio_tags.add(TIT2(encoding=3, text=custom_title))
+            audio_tags.add(TPE1(encoding=3, text="808CODE"))
+            audio_tags.save(out_path)
+        except Exception as tag_err:
+            print(f"Tag error: {tag_err}")
+
+        # ارسال فایل کامل آماده شده برای ساندکلاد به کاربر
+        with open(out_path, 'rb') as audio_file_obj, open(track_cover_path, 'rb') as thumb_file:
+            await context.bot.send_audio(
+                chat_id=query.message.chat_id,
+                audio=audio_file_obj,
+                thumbnail=thumb_file,
+                caption="☁️ **فایل کامل شما مخصوص آپلود در ساندکلاد آماده شد!**\nکاور و اطلاعات متادیتا به فایل اضافه شدند.",
+                title=custom_title,
+                performer="808CODE",
+                parse_mode="Markdown"
+            )
+
+    except Exception as e:
+        await query.message.reply_text(f"❌ خطا در ساخت فایل ساندکلاد: {str(e)}")
+
+    finally:
+        for f in [file_path, out_path, track_cover_path]:
+            if f and os.path.exists(f):
+                try:
+                    os.remove(f)
+                except Exception:
+                    pass
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = context.user_data
@@ -192,7 +272,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     raw_user_text = update.message.text.strip()
     status_msg = await update.message.reply_text("⏳ در حال پردازش صوت و برش ۱۵ ثانیه‌ای...")
 
-    # بررسی وجود زمان برش در متن
     time_match = re.findall(r'\b\d{1,2}:\d{2}\b', raw_user_text)
     
     if len(time_match) >= 2:
@@ -200,10 +279,10 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         end_ms = time_to_ms(time_match[1])
     elif len(time_match) == 1:
         start_ms = time_to_ms(time_match[0])
-        end_ms = start_ms + 15000  # ۱۵ ثانیه بعد از زمان داده شده
+        end_ms = start_ms + 15000
     else:
         start_ms = 0
-        end_ms = 15000  # پیش‌فرض: ۰ تا ۱۵ ثانیه
+        end_ms = 15000
 
     youtube_url = extract_youtube_url(raw_user_text)
     soundcloud_url = extract_soundcloud_url(raw_user_text)
@@ -226,19 +305,16 @@ async def process_and_send_preview(update, context, status_msg):
     cut_path = f"track_{timestamp}.mp3"
 
     try:
-        # دانلود فایل‌ها
         track_cover_file = await context.bot.get_file(user_data['default_track_cover_id'])
         await track_cover_file.download_to_drive(track_cover_path)
 
         audio_file = await context.bot.get_file(user_data['audio_file_id'])
         await audio_file.download_to_drive(file_path)
 
-        # استخراج اطلاعات
         fallback_title = user_data.get('fallback_title', '')
         raw_text_for_info = user_data.get('raw_text_for_info', '')
         custom_title = extract_track_info(raw_text_for_info, fallback_title)
 
-        # پردازش صوت
         start_ms = user_data.get('start_ms', 0)
         end_ms = user_data.get('end_ms', 15000)
         
@@ -246,7 +322,6 @@ async def process_and_send_preview(update, context, status_msg):
         cut_song = song[start_ms:min(end_ms, len(song))]
         cut_song.fade_out(1000).export(cut_path, format="mp3")
 
-        # تزریق کاور و متادیتا (ID3 Tags)
         try:
             try:
                 audio_tags = ID3(cut_path)
@@ -271,7 +346,6 @@ async def process_and_send_preview(update, context, status_msg):
         except Exception as tag_err:
             print(f"Tag error: {tag_err}")
 
-        # دکمه‌های شیشه‌ای جدید
         youtube_url = user_data.get('youtube_url', '')
         yt_link = youtube_url if youtube_url else "https://youtube.com"
 
@@ -285,7 +359,6 @@ async def process_and_send_preview(update, context, status_msg):
         ]
         post_markup = InlineKeyboardMarkup(post_keyboard)
 
-        # ارسال پیش‌نمایش به خود کاربر در چت شخصی
         if os.path.exists(cut_path) and os.path.exists(track_cover_path):
             with open(cut_path, 'rb') as audio_file_obj, open(track_cover_path, 'rb') as thumb_file:
                 sent_audio = await context.bot.send_audio(
@@ -298,13 +371,11 @@ async def process_and_send_preview(update, context, status_msg):
                     reply_markup=post_markup
                 )
                 
-                # ذخیره شناسه فایل پردازش شده برای ارسال مجدد به کانال
                 user_data['processed_audio_file_id'] = sent_audio.audio.file_id
                 user_data['processed_custom_title'] = custom_title
 
         await status_msg.delete()
 
-        # ارسال پیام همراه دکمه «ارسال به کانال»
         channel_keyboard = [
             [InlineKeyboardButton("📢 ارسال به کانال", callback_data="send_to_channel")]
         ]
@@ -321,7 +392,6 @@ async def process_and_send_preview(update, context, status_msg):
         await status_msg.edit_text(f"❌ خطا در پردازش: {str(e)}")
 
     finally:
-        # پاکسازی فایل‌های موقت
         for f in [file_path, cut_path, track_cover_path]:
             if f and os.path.exists(f):
                 try:
@@ -353,7 +423,6 @@ async def send_preview_to_channel(update: Update, context: ContextTypes.DEFAULT_
         ]
         post_markup = InlineKeyboardMarkup(post_keyboard)
 
-        # ارسال به کانال هدف
         await context.bot.send_audio(
             chat_id=TARGET_CHANNEL_ID,
             audio=user_data['processed_audio_file_id'],
