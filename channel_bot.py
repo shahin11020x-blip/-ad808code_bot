@@ -17,7 +17,7 @@ CallbackQueryHandler,
 filters,
 ContextTypes
 )
-​دریافت توکن جدید از سرور رندر یا مقدار پیش‌فرض
+​TELEGRAM TOKEN
 ​TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8831739954:AAHQXZFcV-rUA7GKXws_9OvIhtWtLT_Zb58")
 GITHUB_RAW_URL = "https://raw.githubusercontent.com/shahin11020x-blip/-ad808code_bot/main/channel_bot.py"
 PURCHASE_LINK = "https://t.me/ad_808code"
@@ -40,7 +40,6 @@ elif len(parts) == 1:
 return int(parts[0]) * 1000
 return 0
 ​def extract_track_info(text: str, fallback_title: str) -> str:
-"""استخراج هوشمند عنوان و کد بیت از متن یا اسم فایل"""
 code_match = re.search(r'#808_\d+', text)
 beat_code = code_match.group(0) if code_match else text.strip()
 ​title_match = re.search(r'Title:\s*([^\n\r]+)', text, re.IGNORECASE)
